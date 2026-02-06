@@ -1,3 +1,4 @@
+from src.data.catboost_imputer import CatBoostDfImputer
 from src.data.make_dataset import TARGET
 
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -75,33 +76,15 @@ def build_preprocessor_linear(df, imputer="median", scaler="standard", missing_t
 
 
 def build_preprocessor_catboost(df, imputer="median", missing_threshold=0.80):
-
-    if imputer == "median":
-        num_imputer = SimpleImputer(strategy="median")
-    elif imputer == "knn":
-        num_imputer = KNNImputer(n_neighbors=5)
-    elif imputer == "mice":
-        num_imputer = IterativeImputer(random_state=42)
-    else:
+    if imputer not in ["median", "knn", "mice"]:
         raise ValueError("imputer must be: median | knn | mice")
 
-    num = Pipeline([("imputer", num_imputer)])
-    cat = Pipeline([("imputer", SimpleImputer(strategy="most_frequent"))])
-
-    num_selector = lambda x: x.select_dtypes(exclude=["object", "category"]).columns
-    cat_selector = lambda x: x.select_dtypes(include=["object", "category"]).columns
-
+    num_strategy = "median"
 
     pre = Pipeline([
         ("drop_target", FunctionTransformer(lambda x: x.drop(columns=[TARGET], errors="ignore"))),
-
         ("drop_high_missing", DropHighMissing(threshold=missing_threshold, target=TARGET)),
-
-        ("ct", ColumnTransformer(
-            [("num", num, num_selector), ("cat", cat, cat_selector)],
-            remainder="drop",
-            verbose_feature_names_out=False
-        )),
+        ("df_imputer", CatBoostDfImputer(num_strategy=num_strategy)),
     ])
     return pre
 
