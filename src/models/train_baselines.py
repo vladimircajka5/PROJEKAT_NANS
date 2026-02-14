@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
@@ -17,6 +17,7 @@ from src.models.result import FitResult
 DATA_PATH = "data/CommViolPredUnnormalizedData.txt"
 RANDOM_STATE = 42
 
+CV_FOLDS = 5
 
 def split(x, y):
     x_train_val, x_test, y_train_val, y_test = train_test_split(
@@ -35,12 +36,29 @@ def eval_reg(y_true, y_pred):
     return rmse, mae, r2
 
 
+def cv_rmse_kfold(pipe, x_train, y_train, folds=CV_FOLDS, n_jobs=1):
+
+    cv = KFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
+    scores = cross_val_score(
+        pipe,
+        x_train, y_train,
+        scoring="neg_root_mean_squared_error",
+        cv=cv,
+        n_jobs=n_jobs
+    )
+    return float(-scores.mean())
+
+
 def fit_and_score(
     name, model, pre,
     x_train, y_train, x_val, y_val, x_test, y_test,
-    imputer="median", scaler="standard"
+    imputer="median", scaler="standard",
+    cv_folds=CV_FOLDS
 ):
     pipe = Pipeline([("prep", pre), ("model", model)])
+
+    cv_rmse = cv_rmse_kfold(pipe, x_train, y_train, folds=cv_folds, n_jobs=1)
+
     pipe.fit(x_train, y_train)
 
     pred_val = pipe.predict(x_val)
@@ -51,7 +69,7 @@ def fit_and_score(
 
     return FitResult(
         name=name, imputer=imputer, scaler=scaler,
-        is_tuned=False, best_params=None, cv_rmse=None,
+        is_tuned=False, best_params=None, cv_rmse=cv_rmse,
         val_rmse=val_rmse, val_mae=val_mae, val_r2=val_r2,
         test_rmse=test_rmse, test_mae=test_mae, test_r2=test_r2
     )
@@ -68,13 +86,13 @@ def tune_and_score(
         pipe,
         param_grid=param_grid,
         scoring="neg_root_mean_squared_error",
-        cv=cv,
-        n_jobs=-1
+        cv=KFold(n_splits=cv, shuffle=True, random_state=RANDOM_STATE),
+        n_jobs=1
     )
     gs.fit(x_train, y_train)
 
     best_pipe = gs.best_estimator_
-    cv_rmse = float(-gs.best_score_)
+    cv_rmse = float(-gs.best_score_)  # neg -> pos
 
     pred_val = best_pipe.predict(x_val)
     val_rmse, val_mae, val_r2 = eval_reg(y_val, pred_val)
@@ -103,8 +121,6 @@ def main():
 
     variants = [(imp, sc) for imp in ["median", "knn", "mice"] for sc in ["standard", "robust"]]
 
-
-    # Baseline modeli (bez tuninga) - razlicite kombinacije imputera i skalera
     baseline_models = [
         ("OLS", LinearRegression()),
         ("Ridge(alpha=1)", Ridge(alpha=1.0, random_state=RANDOM_STATE)),
@@ -118,15 +134,19 @@ def main():
         pre = build_preprocessor_linear(df, imputer=imputer, scaler=scaler, missing_threshold=0.80)
         for name, model in baseline_models:
             all_results.append(
-                fit_and_score(name, model, pre, x_train, y_train, x_val, y_val, x_test, y_test, imputer, scaler)
+                fit_and_score(
+                    name, model, pre,
+                    x_train, y_train, x_val, y_val, x_test, y_test,
+                    imputer, scaler,
+                    cv_folds=CV_FOLDS, n_jobs=1
+                )
             )
 
     df_res = pd.DataFrame([r.__dict__ for r in all_results]).sort_values(["val_rmse", "test_rmse"]).reset_index(drop=True)
 
     print("\n=== TOP 15 BY VAL RMSE (baseline sweep) ===")
-    show_cols = ["name", "imputer", "scaler", "val_rmse", "val_mae", "val_r2", "test_rmse", "test_r2"]
+    show_cols = ["name", "imputer", "scaler", "cv_rmse", "val_rmse", "val_mae", "val_r2", "test_rmse", "test_r2"]
     print(df_res[show_cols].head(15).to_string(index=False))
-
 
     out_dir = Path("results")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -139,7 +159,6 @@ def main():
     best_scaler = best_row["scaler"]
     print("\nBest preprocessing (by VAL RMSE):", {"imputer": best_imputer, "scaler": best_scaler})
 
-    # GridSearchCV za ElasticNet - tuning alpha i l1_ratio (kako balansira Lasso vs Ridge)
     pre_best = build_preprocessor_linear(df, imputer=best_imputer, scaler=best_scaler, missing_threshold=0.80)
 
     enet_base = ElasticNet(
@@ -173,7 +192,7 @@ def main():
     plt.scatter(y_val, y_hat_val)
     mn = min(float(y_val.min()), float(y_hat_val.min()))
     mx = max(float(y_val.max()), float(y_hat_val.max()))
-    plt.plot([mn, mx], [mn, mx])  # y=x
+    plt.plot([mn, mx], [mn, mx])
     plt.xlabel("y_true")
     plt.ylabel("y_pred")
     plt.title("Validation: y_true vs y_pred (ElasticNet tuned)")

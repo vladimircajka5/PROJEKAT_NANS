@@ -79,7 +79,7 @@ def build_preprocessor_catboost(df, imputer="median", missing_threshold=0.80):
     if imputer not in ["median", "knn", "mice"]:
         raise ValueError("imputer must be: median | knn | mice")
 
-    num_strategy = "median"
+    num_strategy = imputer
 
     pre = Pipeline([
         ("drop_target", FunctionTransformer(lambda x: x.drop(columns=[TARGET], errors="ignore"))),

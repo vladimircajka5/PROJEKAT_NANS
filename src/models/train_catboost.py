@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from catboost import CatBoostRegressor
@@ -59,6 +59,63 @@ def print_table(rows, cols, title=None):
     for row in str_rows:
         print(" | ".join(row[i].ljust(widths[i]) for i in range(len(cols))))
 
+def catboost_kfold_cv(df, x_trainval, y_trainval, imputer, best_params, folds=5):
+    cv = KFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
+
+    rmses = []
+    maes = []
+    r2s = []
+
+    x_trainval = x_trainval.reset_index(drop=True)
+    y_trainval = y_trainval.reset_index(drop=True)
+
+    for fold_i, (tr_idx, va_idx) in enumerate(cv.split(x_trainval), start=1):
+        x_tr = x_trainval.iloc[tr_idx]
+        y_tr = y_trainval.iloc[tr_idx]
+        x_va = x_trainval.iloc[va_idx]
+        y_va = y_trainval.iloc[va_idx]
+
+        pre = build_preprocessor_catboost(df, imputer=imputer, missing_threshold=0.80)
+        pre.fit(x_tr, y_tr)
+
+        Xtr = pre.transform(x_tr)
+        Xva = pre.transform(x_va)
+
+        cat_cols = Xtr.select_dtypes(include=["object", "category", "string"]).columns.tolist()
+        cat_features = [Xtr.columns.get_loc(c) for c in cat_cols]
+
+        model = CatBoostRegressor(
+            loss_function="RMSE",
+            eval_metric="RMSE",
+            random_seed=RANDOM_STATE,
+            iterations=8000,
+            learning_rate=best_params["learning_rate"],
+            depth=best_params["depth"],
+            l2_leaf_reg=best_params["l2_leaf_reg"],
+            subsample=0.8,
+            colsample_bylevel=0.8,
+            early_stopping_rounds=200,
+            verbose=False,
+        )
+
+        model.fit(Xtr, y_tr, eval_set=(Xva, y_va), cat_features=cat_features, use_best_model=True)
+
+        pred = model.predict(Xva)
+        rmse, mae, r2 = eval_reg(y_va, pred)
+
+        rmses.append(rmse)
+        maes.append(mae)
+        r2s.append(r2)
+
+    rmse_mean = float(np.mean(rmses))
+    rmse_std = float(np.std(rmses, ddof=1)) if len(rmses) > 1 else 0.0
+
+    return {
+        "cv_rmse": rmse_mean,
+        "cv_rmse_std": rmse_std,
+        "cv_mae": float(np.mean(maes)),
+        "cv_r2": float(np.mean(r2s)),
+    }
 
 def main():
     df = load_dataset(DATA_PATH)
@@ -82,7 +139,7 @@ def main():
     cat_cols = xtr.select_dtypes(include=["object", "category", "string"]).columns.tolist()
     cat_features = [xtr.columns.get_loc(c) for c in cat_cols]
 
-    #tuning (biramo najbolje hiperparametre na osnovu VAL RMSE)
+    #tuning
     grid = [
         {"depth": 6,  "learning_rate": 0.05, "l2_leaf_reg": 3.0},
         {"depth": 8,  "learning_rate": 0.05, "l2_leaf_reg": 3.0},
@@ -98,8 +155,16 @@ def main():
     best_model = None
     tuning_rows = []
 
-    print("\n=== CATBOOST TUNING (select by VAL RMSE) ===")
+    print("\n=== CATBOOST TUNING (select by 5-FOLD CV RMSE on TRAIN) ===")
     for i, g in enumerate(grid, start=1):
+        cv_stats = catboost_kfold_cv(
+            df,
+            x_train, y_train,
+            imputer=imputer,
+            best_params=g,
+            folds=5
+        )
+
         model = CatBoostRegressor(
             loss_function="RMSE",
             eval_metric="RMSE",
@@ -130,12 +195,12 @@ def main():
             "val_rmse": float(val_rmse),
             "val_mae": float(val_mae),
             "val_r2": float(val_r2),
+            **cv_stats,  # cv_rmse, cv_rmse_std, cv_mae, cv_r2
         }
 
         print(
-            f"[{i}/{len(grid)}] depth={row['depth']} "
-            f"lr={row['learning_rate']} l2={row['l2_leaf_reg']} "
-            f"-> VAL_RMSE={row['val_rmse']:.4f}"
+            f"[{i}/{len(grid)}] depth={row['depth']} lr={row['learning_rate']} l2={row['l2_leaf_reg']} | "
+            f"CV_RMSE={row['cv_rmse']:.4f}±{row['cv_rmse_std']:.4f} | VAL_RMSE={row['val_rmse']:.4f}"
         )
 
         tuning_rows.append({
@@ -144,20 +209,28 @@ def main():
             "lr": row["learning_rate"],
             "l2": row["l2_leaf_reg"],
             "best_it": row["best_iteration"],
+            "cv_rmse": row["cv_rmse"],
+            "cv_rmse_std": row["cv_rmse_std"],
+            "cv_mae": row["cv_mae"],
+            "cv_r2": row["cv_r2"],
             "val_rmse": row["val_rmse"],
             "val_mae": row["val_mae"],
             "val_r2": row["val_r2"],
         })
 
-        if best_row is None or row["val_rmse"] < best_row["val_rmse"]:
+        if best_row is None or row["cv_rmse"] < best_row["cv_rmse"]:
             best_row = row
             best_model = model
 
-    # tabela svih run-ova sortirana po val_rmse
-    tuning_rows_sorted = sorted(tuning_rows, key=lambda r: r["val_rmse"])
+    # tabela svih run-ova sortirana po CV RMSE
+    tuning_rows_sorted = sorted(tuning_rows, key=lambda r: r["cv_rmse"])
     tuning_rows_print = [
         {
             **r,
+            "cv_rmse": fmt_float(r["cv_rmse"], 4),
+            "cv_rmse_std": fmt_float(r["cv_rmse_std"], 4),
+            "cv_mae": fmt_float(r["cv_mae"], 4),
+            "cv_r2": fmt_float(r["cv_r2"], 4),
             "val_rmse": fmt_float(r["val_rmse"], 4),
             "val_mae": fmt_float(r["val_mae"], 4),
             "val_r2": fmt_float(r["val_r2"], 4),
@@ -167,11 +240,17 @@ def main():
 
     print_table(
         tuning_rows_print,
-        cols=["run", "depth", "lr", "l2", "best_it", "val_rmse", "val_mae", "val_r2"],
-        title="=== CATBOOST TUNING SUMMARY (sorted by VAL_RMSE) ==="
+        cols=["run", "depth", "lr", "l2", "best_it", "cv_rmse", "cv_rmse_std", "val_rmse", "val_mae", "val_r2"],
+        title="=== CATBOOST TUNING SUMMARY (sorted by CV_RMSE) ==="
     )
 
-    # najbolji model
+    print("\n=== CATBOOST 5-FOLD CV (on TRAIN, best params) ===")
+    print(
+        f"CV : RMSE={best_row['cv_rmse']:.4f} ± {best_row['cv_rmse_std']:.4f}  "
+        f"MAE={best_row['cv_mae']:.4f}  R2={best_row['cv_r2']:.4f}"
+    )
+
+    # najbolji model (odabran po CV)
     model = best_model
 
     # final metrics za best model
@@ -187,12 +266,12 @@ def main():
         scaler="none",
         is_tuned=True,
         best_params=best_row,
-        cv_rmse=None,
+        cv_rmse=best_row["cv_rmse"],
         val_rmse=val_rmse, val_mae=val_mae, val_r2=val_r2,
         test_rmse=test_rmse, test_mae=test_mae, test_r2=test_r2
     )
 
-    print("\n=== CATBOOST BEST (by VAL) ===")
+    print("\n=== CATBOOST BEST (by CV) ===")
     print(
         f"depth={best_row['depth']}  lr={best_row['learning_rate']}  "
         f"l2={best_row['l2_leaf_reg']}  best_it={best_row['best_iteration']}"

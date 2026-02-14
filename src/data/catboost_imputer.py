@@ -1,5 +1,7 @@
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.impute import SimpleImputer
+
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 
 
 class CatBoostDfImputer(BaseEstimator, TransformerMixin):
@@ -14,7 +16,14 @@ class CatBoostDfImputer(BaseEstimator, TransformerMixin):
         self.num_cols_ = x.select_dtypes(exclude=["object", "category"]).columns.tolist()
         self.cat_cols_ = x.select_dtypes(include=["object", "category"]).columns.tolist()
 
-        self.num_imputer_ = SimpleImputer(strategy=self.num_strategy)
+        if self.num_strategy == "median":
+            self.num_imputer_ = SimpleImputer(strategy="median")
+        elif self.num_strategy == "knn":
+            self.num_imputer_ = KNNImputer(n_neighbors=5)
+        elif self.num_strategy == "mice":
+            self.num_imputer_ = IterativeImputer(random_state=42)
+        else:
+            raise ValueError("num_strategy must be: median | knn | mice")
         self.cat_imputer_ = SimpleImputer(strategy="most_frequent")
 
         if self.num_cols_:
