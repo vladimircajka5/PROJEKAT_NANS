@@ -44,8 +44,10 @@ def build_preprocessor_linear(df, imputer="median", scaler="standard", missing_t
         scaler_step = StandardScaler()
     elif scaler == "robust":
         scaler_step = RobustScaler()
+    elif scaler== "none":
+        scaler_step = "passthrough"
     else:
-        raise ValueError("scaler must be: standard | robust")
+        raise ValueError("scaler must be: standard | robust | none")
 
     num = Pipeline([
         ("imputer", num_imputer),

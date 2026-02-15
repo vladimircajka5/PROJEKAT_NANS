@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.sparse as sp
 from pathlib import Path
 
 from sklearn.model_selection import train_test_split, GridSearchCV, KFold, cross_val_score
@@ -34,6 +35,28 @@ def eval_reg(y_true, y_pred):
     mae = float(mean_absolute_error(y_true, y_pred))
     r2 = float(r2_score(y_true, y_pred))
     return rmse, mae, r2
+
+def ols_numerical_diagnostics(pre, x_train, y_train):
+
+    X = pre.fit_transform(x_train, y_train)
+
+    try:
+        if sp.issparse(X):
+            X = X.toarray()
+    except Exception:
+        pass
+
+    # singularnost
+    s = np.linalg.svd(X, compute_uv=False)
+    s_min = float(s.min())
+    s_max = float(s.max())
+    cond = float(s_max / s_min) if s_min > 0 else float("inf")
+
+    # kondicioni broj
+    rank = int(np.linalg.matrix_rank(X))
+
+    return {"rank": rank, "s_min": s_min, "cond": cond, "n_features": int(X.shape[1])}
+
 
 
 def cv_rmse_kfold(pipe, x_train, y_train, folds=CV_FOLDS, n_jobs=-1):
@@ -117,9 +140,31 @@ def main():
 
     x_train, x_val, x_test, y_train, y_val, y_test = split(x, y)
 
+    pre_ols_none = build_preprocessor_linear(df, imputer="median", scaler="none", missing_threshold=0.80)
+    pre_ols_std  = build_preprocessor_linear(df, imputer="median", scaler="standard", missing_threshold=0.80)
+
+    diag_none = ols_numerical_diagnostics(pre_ols_none, x_train, y_train)
+    diag_std  = ols_numerical_diagnostics(pre_ols_std, x_train, y_train)
+
+    csv_dir = Path("results/csv")
+    csv_dir.mkdir(parents=True, exist_ok=True)
+
+    df_diag = pd.DataFrame([
+        {"variant": "OLS_median_none", **diag_none},
+        {"variant": "OLS_median_standard", **diag_std},
+    ])
+    diag_path = csv_dir / "ols_diagnostics.csv"
+    df_diag.to_csv(diag_path, index=False)
+    print(f"Saved: {diag_path}")
+
+    print("\n=== OLS NUMERICAL DIAGNOSTICS (TRAIN) ===")
+    print("OLS (median, no scaling):   ", diag_none)
+    print("OLS (median, z-score):      ", diag_std)
+
+
     all_results = []
 
-    variants = [(imp, sc) for imp in ["median", "knn", "mice"] for sc in ["standard", "robust"]]
+    variants = [(imp, sc) for imp in ["median", "knn", "mice"] for sc in ["none", "standard", "robust"]]
 
     baseline_models = [
         ("OLS", LinearRegression()),
@@ -133,6 +178,10 @@ def main():
     for imputer, scaler in variants:
         pre = build_preprocessor_linear(df, imputer=imputer, scaler=scaler, missing_threshold=0.80)
         for name, model in baseline_models:
+            
+            if scaler == "none" and name in ["Lasso(alpha=0.01)", "ElasticNet(a=0.01,l1=0.5)"]:
+                continue
+
             all_results.append(
                 fit_and_score(
                     name, model, pre,

@@ -6,3 +6,4 @@ matplotlib
 catboost
 shap
 tqdm
+scipy
