@@ -1,2 +1,2 @@
 name,imputer,scaler,is_tuned,best_params,cv_rmse,val_rmse,val_mae,val_r2,test_rmse,test_mae,test_r2
-CatBoost (tuned),median,none,True,"{'depth': 8, 'learning_rate': 0.05, 'l2_leaf_reg': 10.0, 'best_iteration': 299, 'val_rmse': 391.4193109036228, 'val_mae': 241.37291951791696, 'val_r2': 0.6691486893563532}",,391.4193109036228,241.37291951791696,0.6691486893563532,356.6547689245695,230.85608972494947,0.6344933389181591
+CatBoost (tuned),median,none,True,"{'depth': 6, 'learning_rate': 0.05, 'l2_leaf_reg': 3.0, 'cv_folds': 3, 'cv_rmse_std': 10.676344780991974, 'cv_mae': 230.130126072218, 'cv_r2': 0.6341461203628324, 'best_iteration': 218}",361.17359501817396,398.3298703407969,245.44120945513097,0.6573631149422023,358.0315881603896,229.98282186560348,0.6316659103492739

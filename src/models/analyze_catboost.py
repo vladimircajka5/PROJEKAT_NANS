@@ -37,7 +37,7 @@ def main():
 
     # koristi iste izbore kao u tuningu
     imputer = "median"
-    best = {"depth": 8, "learning_rate": 0.05, "l2_leaf_reg": 10.0}
+    best = {"depth": 6, "learning_rate": 0.05, "l2_leaf_reg": 3.0}
 
     pre = build_preprocessor_catboost(df, imputer=imputer, missing_threshold=0.80)
     pre.fit(x_train, y_train)
@@ -105,7 +105,7 @@ def main():
         n_repeats=10,
         random_state=RANDOM_STATE,
         scoring=neg_rmse,
-        n_jobs=1
+        n_jobs=-1
     )
 
     perm_df = pd.DataFrame({
