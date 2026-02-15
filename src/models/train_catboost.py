@@ -250,16 +250,16 @@ def main():
     print(f"VAL : RMSE={val_rmse:.4f}  MAE={val_mae:.4f}  R2={val_r2:.4f}")
     print(f"TEST: RMSE={test_rmse:.4f}  MAE={test_mae:.4f}  R2={test_r2:.4f}")
 
-    out_dir = Path("results")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_dir = Path("results/csv")
+    csv_dir.mkdir(parents=True, exist_ok=True)
 
     # najbolji model
-    out_path = out_dir / "results_catboost_tuned.csv"
+    out_path = csv_dir / "results_catboost_tuned.csv"
     pd.DataFrame([res.__dict__]).to_csv(out_path, index=False)
     print(f"\nSaved: {out_path}")
 
     # svi tuning run-ovi
-    runs_path = out_dir / "catboost_tuning_runs.csv"
+    runs_path = csv_dir / "catboost_tuning_runs.csv"
     pd.DataFrame(tuning_rows_sorted).to_csv(runs_path, index=False)
     print(f"Saved: {runs_path}")
 

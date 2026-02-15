@@ -148,9 +148,11 @@ def main():
     show_cols = ["name", "imputer", "scaler", "cv_rmse", "val_rmse", "val_mae", "val_r2", "test_rmse", "test_r2"]
     print(df_res[show_cols].head(15).to_string(index=False))
 
-    out_dir = Path("results")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "results_linear_baselines.csv"
+    csv_dir = Path("results/csv")
+    plot_dir = Path("results/plots")
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    out_path = csv_dir / "results_linear_baselines.csv"
     df_res.to_csv(out_path, index=False)
     print(f"\nSaved: {out_path}")
 
@@ -230,7 +232,7 @@ def main():
     all_results.extend(tuned_results)
     df_all = pd.DataFrame([r.__dict__ for r in all_results]).sort_values(["val_rmse", "test_rmse"]).reset_index(drop=True)
 
-    out_path_all = out_dir / "results_linear_baselines.csv"
+    out_path_all = csv_dir / "results_linear_baselines.csv"
     df_all.to_csv(out_path_all, index=False)
     print(f"\nSaved: {out_path_all}")
 
@@ -246,15 +248,18 @@ def main():
 
     y_hat_val = best_tuned_pipe.predict(x_val)
 
-    plt.figure()
-    plt.scatter(y_val, y_hat_val)
+    plt.figure(figsize=(7, 6))
+    plt.scatter(y_val, y_hat_val, alpha=0.5, s=18, edgecolors="k", linewidths=0.3)
     mn = min(float(y_val.min()), float(y_hat_val.min()))
     mx = max(float(y_val.max()), float(y_hat_val.max()))
-    plt.plot([mn, mx], [mn, mx])
-    plt.xlabel("y_true")
+    plt.plot([mn, mx], [mn, mx], "r--", linewidth=1)
+    plt.xlabel("y_true (ViolentCrimesPerPop)")
     plt.ylabel("y_pred")
     plt.title(f"Validation: y_true vs y_pred ({best_tuned_name})")
-    plt.show()
+    plt.tight_layout()
+    plt.savefig(plot_dir / "baseline_pred_vs_true_val.png", dpi=160)
+    plt.close()
+    print(f"Saved: {plot_dir / 'baseline_pred_vs_true_val.png'}")
 
 
 if __name__ == "__main__":

@@ -4,9 +4,10 @@ import pandas as pd
 
 RESULT_FILES = [
     ("Linear baselines", "results_linear_baselines.csv"),
-    ("CatBoost (single)", "results_catboost.csv"),
     ("CatBoost (tuned)", "results_catboost_tuned.csv"),
 ]
+
+CSV_DIR = Path("results/csv")
 
 SHOW_COLS = [
     "name", "imputer", "scaler", "is_tuned",
@@ -57,13 +58,15 @@ def best_per_model(df_all: pd.DataFrame) -> pd.DataFrame:
     return d.groupby("name", as_index=False).head(1).sort_values(SORT_BY)
 
 def main():
-    out_dir = Path("results")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    CSV_DIR.mkdir(parents=True, exist_ok=True)
 
     loaded = []
     for _, fname in RESULT_FILES:
-        p = out_dir / fname
+        p = CSV_DIR / fname
         df = read_csv_safe(p)
+        if df is None:
+            print(f"Warning: {p} not found, skipping.")
+            continue
         df["source_file"] = fname
         loaded.append(df)
 
@@ -90,7 +93,7 @@ def main():
     print("\n=== BEST PER MODEL ===")
     print(fmt_table(per_model, max_rows=50))
 
-    merged_path = out_dir / "summarized_results.csv"
+    merged_path = CSV_DIR / "summarized_results.csv"
     df_all.to_csv(merged_path, index=False)
 
 if __name__ == "__main__":
