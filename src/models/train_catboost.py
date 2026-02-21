@@ -122,7 +122,7 @@ def main():
 
     imputer = "median"
 
-    #tuning
+    # tuning
     grid = [
         {"depth": 6,  "learning_rate": 0.05, "l2_leaf_reg": 3.0},
         {"depth": 8,  "learning_rate": 0.05, "l2_leaf_reg": 3.0},
@@ -188,7 +188,7 @@ def main():
     print(f"CV : RMSE={best_row['cv_rmse']:.4f} ± {best_row['cv_rmse_std']:.4f}  "
           f"MAE={best_row['cv_mae']:.4f}  R2={best_row['cv_r2']:.4f}")
 
-    # ── Finalni model sa najboljim parametrima (fit na TRAIN, early stop na VAL) ──
+    # finalni model sa najboljim parametrima (fit na TRAIN, early stop na VAL) 
     pre = build_preprocessor_catboost(df, imputer=imputer, missing_threshold=0.80)
     pre.fit(x_train, y_train)
     xtr = pre.transform(x_train)

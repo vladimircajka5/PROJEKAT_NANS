@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import matplotlib.pyplot as plt
 
 RESULT_FILES = [
     ("Linear baselines", "results_linear_baselines.csv"),
@@ -8,6 +9,7 @@ RESULT_FILES = [
 ]
 
 CSV_DIR = Path("results/csv")
+PLOT_DIR = Path("results/plots")
 
 SHOW_COLS = [
     "name", "imputer", "scaler", "is_tuned",
@@ -57,8 +59,65 @@ def best_per_model(df_all: pd.DataFrame) -> pd.DataFrame:
     d = df_all.sort_values(SORT_BY).copy()
     return d.groupby("name", as_index=False).head(1).sort_values(SORT_BY)
 
-def main():
+def ensure_dirs():
     CSV_DIR.mkdir(parents=True, exist_ok=True)
+    PLOT_DIR.mkdir(parents=True, exist_ok=True)
+
+def save_plots(df_all: pd.DataFrame, per_model: pd.DataFrame):
+    # najbolji TEST RMSE po modelu
+    if "test_rmse" in per_model.columns and per_model["test_rmse"].notna().any():
+        plt.figure(figsize=(9, 5))
+        plt.bar(per_model["name"], per_model["test_rmse"])
+        plt.ylabel("TEST RMSE")
+        plt.title("Best TEST RMSE per model")
+        plt.xticks(rotation=20, ha="right")
+        plt.tight_layout()
+        out = PLOT_DIR / "best_test_rmse_per_model.png"
+        plt.savefig(out, dpi=160)
+        plt.close()
+        print(f"Saved plot: {out}")
+
+    #  VAL vs TEST RMSE (najbolji po modelu)
+    if (
+        "val_rmse" in per_model.columns and "test_rmse" in per_model.columns
+        and per_model["val_rmse"].notna().any() and per_model["test_rmse"].notna().any()
+    ):
+        plt.figure(figsize=(6, 6))
+        plt.scatter(per_model["val_rmse"], per_model["test_rmse"], alpha=0.8)
+        for _, r in per_model.iterrows():
+            if pd.notna(r["val_rmse"]) and pd.notna(r["test_rmse"]):
+                plt.text(r["val_rmse"], r["test_rmse"], str(r["name"]), fontsize=8)
+        plt.xlabel("VAL RMSE")
+        plt.ylabel("TEST RMSE")
+        plt.title("VAL vs TEST RMSE (best per model)")
+        plt.tight_layout()
+        out = PLOT_DIR / "val_vs_test_rmse_best_per_model.png"
+        plt.savefig(out, dpi=160)
+        plt.close()
+        print(f"Saved plot: {out}")
+
+    # najbolji TEST RMSE po CSV fajlu
+    if "source_file" in df_all.columns and "test_rmse" in df_all.columns:
+        best_by_source = (
+            df_all.sort_values(SORT_BY)
+                 .groupby("source_file", as_index=False)
+                 .head(1)
+                 .sort_values(SORT_BY)
+        )
+        if best_by_source["test_rmse"].notna().any():
+            plt.figure(figsize=(8, 5))
+            plt.bar(best_by_source["source_file"], best_by_source["test_rmse"])
+            plt.ylabel("TEST RMSE")
+            plt.title("Best TEST RMSE per result file")
+            plt.xticks(rotation=20, ha="right")
+            plt.tight_layout()
+            out = PLOT_DIR / "best_test_rmse_per_file.png"
+            plt.savefig(out, dpi=160)
+            plt.close()
+            print(f"Saved plot: {out}")
+
+def main():
+    ensure_dirs()
 
     loaded = []
     for _, fname in RESULT_FILES:
@@ -95,6 +154,18 @@ def main():
 
     merged_path = CSV_DIR / "summarized_results.csv"
     df_all.to_csv(merged_path, index=False)
+
+    # Sacuvaj CSV-ove sa svim rezultatima i najboljim po modelu
+    leaderboard_path = CSV_DIR / "leaderboard_all.csv"
+    df_all.to_csv(leaderboard_path, index=False)
+    print(f"Saved: {leaderboard_path}")
+
+    best_path = CSV_DIR / "best_per_model.csv"
+    per_model.to_csv(best_path, index=False)
+    print(f"Saved: {best_path}")
+
+    # Sacuvaj plotove
+    save_plots(df_all, per_model)
 
 if __name__ == "__main__":
     main()

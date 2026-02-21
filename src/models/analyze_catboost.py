@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use("Agg")                       # bez GUI prozora
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import shap
 from pathlib import Path
