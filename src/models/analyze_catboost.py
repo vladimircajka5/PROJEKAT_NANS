@@ -5,6 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import shap
 from pathlib import Path
+import ast
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -38,9 +39,16 @@ def main():
 
     x_train, x_val, x_test, y_train, y_val, y_test = split(x, y)
 
-    # koristi iste izbore kao u tuningu
-    imputer = "median"
-    best = {"depth": 6, "learning_rate": 0.05, "l2_leaf_reg": 3.0}
+    # koristi CatBoost BASELINE iz results/csv/results_catboost.csv
+    row = pd.read_csv("results/csv/results_catboost.csv").iloc[0].to_dict()
+    imputer = row.get("imputer", "median")
+
+    best_raw = row.get("best_params", "{}")
+    best = ast.literal_eval(best_raw) if isinstance(best_raw, str) else (best_raw or {})
+
+    print("\n=== Analyzing CatBoost BASELINE ===")
+    print("imputer:", imputer)
+    print("best_params:", best)
 
     pre = build_preprocessor_catboost(df, imputer=imputer, missing_threshold=0.80)
     pre.fit(x_train, y_train)
@@ -55,13 +63,13 @@ def main():
         loss_function="RMSE",
         eval_metric="RMSE",
         random_seed=RANDOM_STATE,
-        iterations=8000,
-        learning_rate=best["learning_rate"],
-        depth=best["depth"],
-        l2_leaf_reg=best["l2_leaf_reg"],
-        subsample=0.8,
-        colsample_bylevel=0.8,
-        early_stopping_rounds=200,
+        iterations=int(best.get("iterations", 8000)),
+        learning_rate=float(best.get("learning_rate", 0.05)),
+        depth=int(best.get("depth", 8)),
+        l2_leaf_reg=float(best.get("l2_leaf_reg", 3.0)),
+        subsample=float(best.get("subsample", 0.8)),
+        colsample_bylevel=float(best.get("colsample_bylevel", 0.8)),
+        early_stopping_rounds=400,   # neka bude isto kao u baseline treningu
         verbose=200,
         allow_writing_files=False,
         thread_count=-1

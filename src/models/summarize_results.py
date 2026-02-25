@@ -4,8 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 RESULT_FILES = [
-    ("Linear baselines", "results_linear_baselines.csv"),
-    ("CatBoost (tuned)", "results_catboost_tuned.csv"),
+  ("Linear baselines", "results_linear_baselines.csv"),
+  ("CatBoost (tuned)", "results_catboost_tuned.csv"),
+  ("CatBoost (baseline)", "results_catboost.csv"),
 ]
 
 CSV_DIR = Path("results/csv")

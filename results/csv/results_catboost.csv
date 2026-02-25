@@ -1,2 +1,2 @@
 name,imputer,scaler,is_tuned,best_params,cv_rmse,val_rmse,val_mae,val_r2,test_rmse,test_mae,test_r2
-CatBoost,median,none,False,"{'best_iteration': 233, 'learning_rate': 0.05, 'depth': 8, 'l2_leaf_reg': 3.0, 'subsample': 0.8, 'colsample_bylevel': 0.8}",,391.515772043393,237.50061417178816,0.6689855996666021,353.9883516357764,227.80552286664187,0.6399381008823699
+CatBoost (baseline),median,none,False,"{'depth': 8, 'learning_rate': 0.05, 'l2_leaf_reg': 3.0, 'subsample': 0.8, 'colsample_bylevel': 0.8, 'best_iteration': 602}",,391.3907464743819,238.01741348475744,0.6691969763659799,351.77534497351746,226.84172512896504,0.6444259811482287
