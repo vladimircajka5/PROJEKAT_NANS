@@ -221,7 +221,7 @@ def main():
         mn = min(float(np.min(y_true)), float(np.min(y_pred)))
         mx = max(float(np.max(y_true)), float(np.max(y_pred)))
         ax.plot([mn, mx], [mn, mx], "r--", linewidth=1)
-        ax.set_xlabel("y_true (ViolentCrimesPerPop)")
+        ax.set_xlabel("y_true (violentPerPop)")
         ax.set_ylabel("y_pred")
         ax.set_title(f"CatBoost {split_name.upper()}: y_true vs y_pred\n"
                      f"RMSE={rmse:.1f}  MAE={mae:.1f}  R²={r2:.3f}")

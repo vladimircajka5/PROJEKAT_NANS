@@ -59,8 +59,8 @@ def print_table(rows, cols, title=None):
     for row in str_rows:
         print(" | ".join(row[i].ljust(widths[i]) for i in range(len(cols))))
 
-def catboost_kfold_cv(df, x_train, y_train, imputer, params, folds=3,
-                      iterations=2000, early_stopping_rounds=80):
+def catboost_kfold_cv(df, x_train, y_train, imputer, params, folds=5,
+                      iterations=4000, early_stopping_rounds=200):
     cv = KFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
 
     rmses, maes, r2s = [], [], []
@@ -124,25 +124,25 @@ def main():
 
     # tuning
     grid = [
-        {"depth": 6,  "learning_rate": 0.05, "l2_leaf_reg": 3.0},
-        {"depth": 8,  "learning_rate": 0.05, "l2_leaf_reg": 3.0},
-        {"depth": 8,  "learning_rate": 0.03, "l2_leaf_reg": 3.0},
-        {"depth": 8,  "learning_rate": 0.05, "l2_leaf_reg": 10.0},
+        {"depth": d, "learning_rate": lr, "l2_leaf_reg": l2}
+        for d  in [4, 6, 8]
+        for lr in [0.02, 0.03, 0.05]
+        for l2 in [3.0, 10.0]
     ]
 
     best_row = None
     tuning_rows = []
 
-    print("\n=== CATBOOST TUNING (3-FOLD CV on TRAIN) ===")
+    print("\n=== CATBOOST TUNING (5-FOLD CV on TRAIN) ===")
     for i, g in enumerate(grid, start=1):
         cv_stats = catboost_kfold_cv(
             df,
             x_train, y_train,
             imputer=imputer,
             params=g,
-            folds=3,
-            iterations=2000,
-            early_stopping_rounds=80,
+            folds=5,
+            iterations=4000,
+            early_stopping_rounds=200,
         )
 
         row = {**g, **cv_stats}
@@ -233,7 +233,7 @@ def main():
         best_params={"depth": best_row["depth"],
         "learning_rate": best_row["learning_rate"],
         "l2_leaf_reg": best_row["l2_leaf_reg"],
-        "cv_folds": 3,
+        "cv_folds": 5,
         "cv_rmse_std": best_row["cv_rmse_std"],
         "cv_mae": best_row["cv_mae"],
         "cv_r2": best_row["cv_r2"],

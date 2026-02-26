@@ -161,6 +161,29 @@ def main():
     print("OLS (median, no scaling):   ", diag_none)
     print("OLS (median, z-score):      ", diag_std)
 
+    plot_dir = Path("results/plots")
+    plot_dir.mkdir(parents=True, exist_ok=True)
+
+    ols_pipe = Pipeline([
+        ("prep", pre_ols_std),
+        ("model", LinearRegression())
+    ])
+
+    ols_pipe.fit(x_train, y_train)
+    y_pred_val = ols_pipe.predict(x_val)
+    residuals = y_val - y_pred_val
+
+    plt.figure(figsize=(7, 4))
+    plt.scatter(y_pred_val, residuals, alpha=0.5, s=18, edgecolors="k", linewidths=0.3)
+    plt.axhline(0, linestyle="--", linewidth=1)
+    plt.xlabel("Predikcija (y_pred)")
+    plt.ylabel("Rezidual (y_true - y_pred)")
+    plt.title("OLS reziduali na validaciji (median + standardizacija)")
+    plt.tight_layout()
+    plt.savefig(plot_dir / "ols_residuals_val.png", dpi=160)
+    plt.close()
+
+    print(f"Saved: {plot_dir / 'ols_residuals_val.png'}")
 
     all_results = []
 
@@ -197,8 +220,6 @@ def main():
     show_cols = ["name", "imputer", "scaler", "cv_rmse", "val_rmse", "val_mae", "val_r2", "test_rmse", "test_r2"]
     print(df_res[show_cols].head(15).to_string(index=False))
 
-    csv_dir = Path("results/csv")
-    plot_dir = Path("results/plots")
     csv_dir.mkdir(parents=True, exist_ok=True)
     plot_dir.mkdir(parents=True, exist_ok=True)
     out_path = csv_dir / "results_linear_baselines.csv"
@@ -302,7 +323,7 @@ def main():
     mn = min(float(y_val.min()), float(y_hat_val.min()))
     mx = max(float(y_val.max()), float(y_hat_val.max()))
     plt.plot([mn, mx], [mn, mx], "r--", linewidth=1)
-    plt.xlabel("y_true (ViolentCrimesPerPop)")
+    plt.xlabel("y_true (violentPerPop)")
     plt.ylabel("y_pred")
     plt.title(f"Validation: y_true vs y_pred ({best_tuned_name})")
     plt.tight_layout()
